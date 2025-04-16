@@ -18,7 +18,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     camera.attachControl(canvas, true);
 
     const light = new BABYLON.HemisphericLight("light", new BABYLON.Vector3(1, 1, 0), scene);
-    pianoRoll3D = new PianoRoll3D(scene, 5, 16, 60, audioContext);
+    pianoRoll3D = new PianoRoll3D(scene, 7, 16, 60, audioContext);
 
 
     // Set up WebAudio piano roll + synth
