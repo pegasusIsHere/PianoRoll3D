@@ -1,6 +1,14 @@
 import { PianoRoll3D } from './PianoRoll3D.js';
+import { WebPianoRollManager } from './WebPianoRollManager.js';
 
-window.addEventListener('DOMContentLoaded', () => {
+let pianoRoll3D, webPianoRoll;
+let currentBpm = 60;
+
+const audioContext = new AudioContext();
+
+window.addEventListener('DOMContentLoaded', async () => {
+
+    
     const canvas = document.getElementById("renderCanvas");
     const engine = new BABYLON.Engine(canvas, true);
     const scene = new BABYLON.Scene(engine);
@@ -10,12 +18,44 @@ window.addEventListener('DOMContentLoaded', () => {
     camera.attachControl(canvas, true);
 
     const light = new BABYLON.HemisphericLight("light", new BABYLON.Vector3(1, 1, 0), scene);
+    pianoRoll3D = new PianoRoll3D(scene, 5, 16, 60, audioContext);
 
-    // Create the sequencer grid
-    const sequencer = new PianoRoll3D(scene, 5, 16, 60); // rows, cols, tempo
 
+    // Set up WebAudio piano roll + synth
+    webPianoRoll = new WebPianoRollManager(audioContext);
+    await webPianoRoll.setup();
+    const btnStart = document.querySelector("#btn-start");
+
+    btnStart.onclick = () => {
+
+        if (audioContext.state !== "running") {
+          audioContext.resume();
+        }
+    
+        if (btnStart.textContent === "Start") {
+          pianoRoll3D.start();
+          webPianoRoll.play(currentBpm);
+          btnStart.textContent = "Stop";
+        } else {
+          pianoRoll3D.stop();
+          webPianoRoll.stop();
+          audioContext.suspend();
+          btnStart.textContent = "Start";
+        }
+      };
+
+      document.querySelector("#bpm").oninput = (e) => {
+        currentBpm = parseInt(e.target.value);
+        pianoRoll3D.setTempo(currentBpm);
+        webPianoRoll.play(currentBpm);
+      };
+
+
+      
     engine.runRenderLoop(() => {
-        sequencer.update();
+        if (pianoRoll3D) 
+        pianoRoll3D.update();
+        
         scene.render();
     });
 

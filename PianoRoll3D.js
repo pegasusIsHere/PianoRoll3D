@@ -1,21 +1,28 @@
 export class PianoRoll3D {
-    constructor(scene, rows, cols, tempo = 60) {
+    constructor(scene, rows, cols, tempo = 60,audioContext) {
         this.scene = scene;
+        this.audioContext = audioContext;
         this.rows = rows;
         this.cols = cols;
-        this.tempo = tempo;
 
+        // Grid properties
         this.buttonWidth = 2;
         this.buttonHeight = 0.2;
         this.buttonDepth = 2;
         this.buttonSpacing = 0.02;
 
+        this.tempo = tempo;
+        this.timeSignatureNumerator = 4;
+        this.timeSignatureDenominator = 4;
         this.beatDuration = 60 / this.tempo;
-        this.cellDuration = this.beatDuration / 4;
-        this.startTime = performance.now() / 1000;
+        this.cellDuration = this.beatDuration / this.timeSignatureDenominator;
+
+        this.started = false;
+        this.startTime = 0;
 
         this.createGrid();
         this.createPlayhead();
+        this.initActions();
     }
 
     createGrid() {
@@ -56,26 +63,78 @@ export class PianoRoll3D {
     }
 
     update() {
-        var now = performance.now() / 1000; // seconds
-        var elapsed = now - this.startTime;
-        // var currentCellFloat = (elapsed / cellDuration) % totalCells;
-        var currentCellFloat = ((elapsed / this.cellDuration) % (this.cols - 0.0001));
+        if (!this.started || !this.cellDuration) return;
 
-        // work but not animated
-        // var x = Math.floor(currentCellFloat) * (buttonWidth + buttonSpacing) 
-        // - (cols - 1) / 2 * (buttonWidth + buttonSpacing);
         
-        var rawCell = elapsed / this.cellDuration;
-        var currentCellFloat = rawCell % this.cols;
+        const elapsed = this.audioContext.currentTime - this.startTime;
+        const currentCell = elapsed / this.cellDuration;
+        // const currentCellFloat = currentCell % (this.cols - 0.0001);
 
+
+
+        var currentCellFloat = currentCell% this.cols;
+        // var currentCellFloat = ((elapsed / this.cellDuration) % (this.cols - 0.0001));
+
+        // // work but not animated
+        // // var x = Math.floor(currentCellFloat) * (buttonWidth + buttonSpacing) 
+        // // - (cols - 1) / 2 * (buttonWidth + buttonSpacing);
+        
         if (currentCellFloat > this.cols - 1) {
-        currentCellFloat = this.cols - 1;
-        }
+            currentCellFloat = this.cols - 1;
+            }
 
         var x = (currentCellFloat * (this.buttonWidth + this.buttonSpacing)) 
         - ((this.cols - 1) / 2 * (this.buttonWidth + this.buttonSpacing));
 
-
         this.playhead.position.x = x;
     }
+
+    start() {
+        this.started = true;
+        this.playhead.position.x = this.getStartX();
+        this.startTime = this.audioContext.currentTime; // ⏱️
+    }
+
+    stop() {
+        this.started = false;
+        this.playhead.position.x = this.getStartX();
+    }
+    
+    setTempo(bpm) {
+        this.tempo = bpm;
+        this.beatDuration = 60 / this.tempo;
+        this.cellDuration = this.beatDuration / this.timeSignatureDenominator;
+    }
+    
+    getStartX() {
+        return -((this.cols - 1) / 2) * (this.buttonWidth + this.buttonSpacing);
+    }
+    
+    // function init action if button is pressed change color to red
+    initActions(){
+        // this.buttons.forEach((button) => {
+    // Attach an action to handle note activation
+    // if (!button.actionManager) {
+    //     button.actionManager = new BABYLON.ActionManager(this.scene);
+    //   }
+  
+    //   button.actionManager.registerAction(
+    //     new BABYLON.ExecuteCodeAction(BABYLON.ActionManager.OnPickTrigger, () => {
+    //         this.buttons[i].material.diffuseColor = new BABYLON.Color3(1, 0, 0);
+            
+    //     })
+    //   );
+        // });
+        for (let i = 0; i < this.buttons.length; i++) {
+            if (!this.buttons[i].actionManager) {
+                this.buttons[i].actionManager = new BABYLON.ActionManager(this.scene);
+              }
+            this.buttons[i].actionManager = new BABYLON.ActionManager(this.scene);
+            this.buttons[i].actionManager.registerAction(new BABYLON.ExecuteCodeAction(BABYLON.ActionManager.OnPickTrigger, () => {
+                updateNoteColor(row, column);
+            }));
+        }
+    }
+
+
 }
