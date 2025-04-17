@@ -11,7 +11,7 @@ export class PianoRoll3D {
         this.buttonWidth = 2;
         this.buttonHeight = 0.2;
         this.buttonDepth = 2;
-        this.buttonSpacing = 0.52;
+        this.buttonSpacing = 0.5;
 
         //base mesh properties
         this.startX = -(this.cols - 1) / 2 * (this.buttonWidth + this.buttonSpacing);
@@ -56,12 +56,17 @@ export class PianoRoll3D {
         return noteMap[note]// || 60;
       }
 
-    triggerNotePlayback(row, col) {
+    triggerNotePlayback(row, col,button) {
+      console.log("triggerNotePlayback", row, col);
         const note = this.notes[row];
         const midiNumber = this.convertNoteToMidi(note);
       
         // Play now
         const currentTime = this.audioContext.currentTime;
+
+        setTimeout(() => {
+          button.isPlaying = false;
+        },this.cellDuration * 1000);
       
         // Note On
         this.webPianoRoll.synthInstance.audioNode.scheduleEvents({
@@ -73,8 +78,8 @@ export class PianoRoll3D {
         // Note Off after duration (e.g., 0.3s)
         this.webPianoRoll.synthInstance.audioNode.scheduleEvents({
           type: 'wam-midi',
-          time: currentTime + 0.3,
-          data: { bytes: [0x80, midiNumber, 0] }
+          time: currentTime + this.cellDuration,
+          data: { bytes: [0x80, midiNumber, 100] }
         });
       }
       
@@ -147,12 +152,12 @@ export class PianoRoll3D {
         // // var x = Math.floor(currentCellFloat) * (buttonWidth + buttonSpacing) 
         // // - (cols - 1) / 2 * (buttonWidth + buttonSpacing);
         
-        if (currentCellFloat > this.cols - 0.6) {
-            currentCellFloat = this.cols - 0.6;
-            }
+        // if (currentCellFloat > this.cols - 0.6) {
+        //     currentCellFloat = this.cols - 0.6;
+        //     }
 
         var x = (currentCellFloat * (this.buttonWidth + this.buttonSpacing)) 
-        - ((this.cols - 1) / 2 * (this.buttonWidth + this.buttonSpacing));
+         - ((this.cols - 1) / 2 * (this.buttonWidth + this.buttonSpacing))-this.buttonWidth/2;
 
         this.playhead.position.x = x;
 
@@ -168,12 +173,13 @@ export class PianoRoll3D {
     highlightActiveButtons(currentCol) {
         for (let row = 0; row < this.rows; row++) {
           const button = this.getButton(row, currentCol);
-          if (button && button.isActive) {
+          if (button && button.isActive &&  !button.isPlaying) {
+            button.isPlaying = true;
             // Flash green
             button.material.diffuseColor = new BABYLON.Color3(0, 1, 0);
       
             // Play note
-            this.triggerNotePlayback(row, currentCol);
+            this.triggerNotePlayback(row, currentCol,button);
       
             setTimeout(() => {
               if (button.isActive) {
@@ -204,7 +210,7 @@ export class PianoRoll3D {
     }
     
     getStartX() {
-        return -((this.cols - 1) / 2) * (this.buttonWidth + this.buttonSpacing);
+        return -((this.cols - 1) / 2) * (this.buttonWidth + this.buttonSpacing)-this.buttonWidth/2;
     }
 
     getButton(row, col) {
