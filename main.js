@@ -18,12 +18,16 @@ window.addEventListener('DOMContentLoaded', async () => {
     camera.attachControl(canvas, true);
 
     const light = new BABYLON.HemisphericLight("light", new BABYLON.Vector3(1, 1, 0), scene);
-    pianoRoll3D = new PianoRoll3D(scene, 7, 16, 60, audioContext);
-
-
+    
+    
     // Set up WebAudio piano roll + synth
     webPianoRoll = new WebPianoRollManager(audioContext);
     await webPianoRoll.setup();
+    console.log(webPianoRoll);
+
+    // set timeout to wait for the WAM to load
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    pianoRoll3D = new PianoRoll3D(scene, 12, 30, 60, audioContext,webPianoRoll );
     const btnStart = document.querySelector("#btn-start");
 
     btnStart.onclick = () => {

@@ -1,7 +1,9 @@
 export class PianoRoll3D {
-    constructor(scene, rows, cols, tempo = 60,audioContext) {
+    constructor(scene, rows, cols, tempo = 60,audioContext,webPianoRoll) {
         this.scene = scene;
         this.audioContext = audioContext;
+        this.webPianoRoll = webPianoRoll;
+
         this.rows = rows;
         this.cols = cols;
 
@@ -29,8 +31,53 @@ export class PianoRoll3D {
         this.createGrid();
         this.createPlayhead();
         this.initActions();
-    }
 
+
+        this.notes = ["C3", "D3", "E3", "F3", "G3", "A3", "B3", "C4", "D4", "E4", "F4", "G4", "A4", "B4"];
+
+    }
+    convertNoteToMidi(note) {
+        const noteMap = {
+          C3: 48,
+          D3: 50,
+          E3: 52,
+          F3: 53,
+          G3: 55,
+          A3: 57,
+          B3: 59,
+          C4: 60,
+          D4: 62,
+          E4: 64,
+          F4: 65,
+          G4: 67,
+          A4: 69,
+          B4: 71,
+        };
+        return noteMap[note]// || 60;
+      }
+
+    triggerNotePlayback(row, col) {
+        const note = this.notes[row];
+        const midiNumber = this.convertNoteToMidi(note);
+      
+        // Play now
+        const currentTime = this.audioContext.currentTime;
+      
+        // Note On
+        this.webPianoRoll.synthInstance.audioNode.scheduleEvents({
+          type: 'wam-midi',
+          time: currentTime,
+          data: { bytes: [0x90, midiNumber, 100] }
+        });
+      
+        // Note Off after duration (e.g., 0.3s)
+        this.webPianoRoll.synthInstance.audioNode.scheduleEvents({
+          type: 'wam-midi',
+          time: currentTime + 0.3,
+          data: { bytes: [0x80, midiNumber, 0] }
+        });
+      }
+      
     createGrid() {
         this.buttonMaterial = new BABYLON.StandardMaterial("buttonMaterial", this.scene);
         this.buttonMaterial.diffuseColor = new BABYLON.Color3(0.2, 0.6, 0.8);
@@ -120,18 +167,23 @@ export class PianoRoll3D {
 
     highlightActiveButtons(currentCol) {
         for (let row = 0; row < this.rows; row++) {
-            const button = this.getButton(row, currentCol);
-            if (button && button.isActive) {
-                button.material.diffuseColor = new BABYLON.Color3(0, 1, 0); // Green
-    
-                setTimeout(() => {
-                    if (button.isActive) {
-                        button.material.diffuseColor = new BABYLON.Color3(1, 0, 0); // Red
-                    }
-                }, this.cellDuration * 1000);
-            }
+          const button = this.getButton(row, currentCol);
+          if (button && button.isActive) {
+            // Flash green
+            button.material.diffuseColor = new BABYLON.Color3(0, 1, 0);
+      
+            // Play note
+            this.triggerNotePlayback(row, currentCol);
+      
+            setTimeout(() => {
+              if (button.isActive) {
+                button.material.diffuseColor = new BABYLON.Color3(1, 0, 0); // Red
+              }
+            }, this.cellDuration * 1000);
+          }
         }
-    }
+      }
+      
     
 
     start() {
