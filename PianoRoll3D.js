@@ -7,13 +7,11 @@ export class PianoRoll3D {
         this.rows = rows;
         this.cols = cols;
 
-        // Grid properties
         this.buttonWidth = 2;
         this.buttonHeight = 0.2;
         this.buttonDepth = 2;
         this.buttonSpacing = 0.5;
 
-        //base mesh properties
         this.startX = -(this.cols - 1) / 2 * (this.buttonWidth + this.buttonSpacing);
         this.endX = (this.cols - 1) / 2 * (this.buttonWidth + this.buttonSpacing);
         this.startZ = -(this.rows - 1) / 2 * (this.buttonWidth + this.buttonSpacing);
@@ -28,13 +26,13 @@ export class PianoRoll3D {
         this.started = false;
         this.startTime = 0;
 
+        this.notes = ["C3", "D3", "E3", "F3", "G3", "A3", "B3", "C4", "D4", "E4", "F4", "G4", "A4", "B4"];
+
         this.createGrid();
         this.createPlayhead();
         this.initActions();
 
-
-        this.notes = ["C3", "D3", "E3", "F3", "G3", "A3", "B3", "C4", "D4", "E4", "F4", "G4", "A4", "B4"];
-
+        this.pattern = { length: 96, notes: [] };
     }
     convertNoteToMidi(note) {
         const noteMap = {
@@ -53,40 +51,64 @@ export class PianoRoll3D {
           A4: 69,
           B4: 71,
         };
-        return noteMap[note]// || 60;
-      }
+        return noteMap[note];
+    }
 
-    triggerNotePlayback(row, col,button) {
-      console.log("triggerNotePlayback", row, col);
+    // triggerNotePlayback(row, col,button) {
+    //   console.log("triggerNotePlayback", row, col);
+    //     const note = this.notes[row];
+    //     const midiNumber = this.convertNoteToMidi(note);
+      
+    //     // Play now
+    //     const currentTime = this.audioContext.currentTime;
+
+    //     setTimeout(() => {
+    //       button.isPlaying = false;
+    //     },this.cellDuration * 1000);
+      
+    //     // Note On
+    //     this.webPianoRoll.synthInstance.audioNode.scheduleEvents({
+    //       type: 'wam-midi',
+    //       time: currentTime,
+    //       data: { bytes: [0x90, midiNumber, 100] }
+    //     });
+    //     this.webPianoRoll.synthInstance.audioNode.scheduleEvents({
+    //       type: 'wam-midi',
+    //       time: currentTime + this.cellDuration,
+    //       data: { bytes: [0x80, midiNumber, 100] }
+    //     });
+    // }
+
+    sendPatternToPianoRoll() {
+        const delegate = window?.WAMExtensions?.patterns?.getPatternViewDelegate(
+            this.webPianoRoll.pianoRollInstance.instanceId
+        );
+
+        
+
+        if (!delegate) return;
+        delegate.setPatternState("default", this.pattern);
+        console.log("sendPatternToPianoRoll", this.pattern);
+    }
+
+    updatePattern(row, col, isActive) {
         const note = this.notes[row];
-        const midiNumber = this.convertNoteToMidi(note);
-      
-        // Play now
-        const currentTime = this.audioContext.currentTime;
+        const midi = this.convertNoteToMidi(note);
+        const tick = col * 6;
+        const index = this.pattern.notes.findIndex(n => n.number === midi && n.tick === tick);
 
-        setTimeout(() => {
-          button.isPlaying = false;
-        },this.cellDuration * 1000);
-      
-        // Note On
-        this.webPianoRoll.synthInstance.audioNode.scheduleEvents({
-          type: 'wam-midi',
-          time: currentTime,
-          data: { bytes: [0x90, midiNumber, 100] }
-        });
-      
-        // Note Off after duration (e.g., 0.3s)
-        this.webPianoRoll.synthInstance.audioNode.scheduleEvents({
-          type: 'wam-midi',
-          time: currentTime + this.cellDuration,
-          data: { bytes: [0x80, midiNumber, 100] }
-        });
-      }
-      
+        if (isActive && index === -1) {
+            this.pattern.notes.push({ tick, number: midi, duration: 6, velocity: 100 });
+        } else if (!isActive && index !== -1) {
+            this.pattern.notes.splice(index, 1);
+        }
+
+        this.sendPatternToPianoRoll();
+    }
+
     createGrid() {
         this.buttonMaterial = new BABYLON.StandardMaterial("buttonMaterial", this.scene);
         this.buttonMaterial.diffuseColor = new BABYLON.Color3(0.2, 0.6, 0.8);
-
         this.buttons = Array.from({ length: this.rows }, () => []);
 
         for (let i = 0; i < this.rows; i++) {
@@ -132,6 +154,7 @@ export class PianoRoll3D {
         let playheadMaterial = new BABYLON.StandardMaterial("playheadMaterial", this.scene);
         playheadMaterial.diffuseColor = new BABYLON.Color3(0, 1, 0);
         this.playhead.material = playheadMaterial;
+        this.playhead.position.x = this.getStartX();
         this.playhead.position.y = 0.2;
     }
 
@@ -166,12 +189,10 @@ export class PianoRoll3D {
         const currentCol = Math.floor(currentCell % this.cols);
 
         this.highlightActiveButtons(currentCol);
-
-
     }
 
     highlightActiveButtons(currentCol) {
-        for (let row = 0; row < this.rows; row++) {
+      for (let row = 0; row < this.rows; row++) {
           const button = this.getButton(row, currentCol);
           if (button && button.isActive &&  !button.isPlaying) {
             button.isPlaying = true;
@@ -179,7 +200,7 @@ export class PianoRoll3D {
             button.material.diffuseColor = new BABYLON.Color3(0, 1, 0);
       
             // Play note
-            this.triggerNotePlayback(row, currentCol,button);
+            // this.triggerNotePlayback(row, currentCol,button);
       
             setTimeout(() => {
               if (button.isActive) {
@@ -188,9 +209,7 @@ export class PianoRoll3D {
             }, this.cellDuration * 1000);
           }
         }
-      }
-      
-    
+    }
 
     start() {
         this.started = true;
@@ -248,15 +267,10 @@ export class PianoRoll3D {
     toggleNoteColor(row, col) {
         const button = this.getButton(row, col);
         if (!button) return;
-    
         button.isActive = !button.isActive;
-    
         button.material.diffuseColor = button.isActive
-            ? new BABYLON.Color3(1, 0, 0)  // red
-            : new BABYLON.Color3(0.2, 0.6, 0.8);  // original blue
+            ? new BABYLON.Color3(1, 0, 0)
+            : new BABYLON.Color3(0.2, 0.6, 0.8);
+        this.updatePattern(row, col, button.isActive);
     }
-    
-    
-    
-
-}
+    }

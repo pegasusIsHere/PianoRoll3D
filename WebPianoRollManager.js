@@ -1,3 +1,5 @@
+import { initExtensions } from './extensions.js';
+
 export class WebPianoRollManager {
     constructor(audioContext) {
       this.audioContext = audioContext;
@@ -7,6 +9,9 @@ export class WebPianoRollManager {
     }
   
     async setup() {
+
+        await initExtensions(); // Ensure extensions initialized first
+
       const hostGroupId = await this.setupWamHost();
   
       const pianoRollURI = "https://www.webaudiomodules.com/community/plugins/burns-audio/pianoroll/index.js";
