@@ -32,8 +32,9 @@ export class PianoRoll3D {
         this.createPlayhead();
         this.initActions();
 
-        this.pattern = { length: 96, notes: [] };
-        this.isAKeyPressed = false;
+        this.ticksPerColumn = 6;
+        this.pattern = { length: this.cols * this.ticksPerColumn, notes: [] };
+                this.isAKeyPressed = false;
         window.addEventListener("keydown", (e) => {
           if (e.key.toLowerCase() === "a") {
               this.isAKeyPressed = true;
@@ -108,7 +109,7 @@ export class PianoRoll3D {
     updatePattern(row, col, isActive) {
         const note = this.notes[row];
         const midi = this.convertNoteToMidi(note);
-        const tick = col * 6;
+        const tick = col * this.ticksPerColumn;
         const index = this.pattern.notes.findIndex(n => n.number === midi && n.tick === tick);
 
         if (isActive && index === -1) {
@@ -126,7 +127,7 @@ export class PianoRoll3D {
       this.buttons = Array.from({ length: this.rows }, () => []);
   
       for (let i = 0; i < this.rows; i++) {
-          // Create label button (not interactive, only for display)
+          // Label button (non-interactive)
           const labelButton = BABYLON.MeshBuilder.CreateBox(`label_button_${i}`, {
               width: this.buttonWidth,
               height: this.buttonHeight,
@@ -141,7 +142,6 @@ export class PianoRoll3D {
           labelMaterial.diffuseColor = new BABYLON.Color3(0.1, 0.1, 0.1);
           labelButton.material = labelMaterial;
   
-          // Add label using your method
           this.addLabelToButton(labelButton, this.notes[i]);
   
           for (let j = 0; j < this.cols; j++) {
@@ -164,7 +164,7 @@ export class PianoRoll3D {
           }
       }
   
-      // Create base mesh
+      // Base mesh under grid
       const baseMesh = BABYLON.MeshBuilder.CreateBox("baseMesh", {
           width: this.endX - this.startX + this.buttonWidth * 2 + this.buttonSpacing,
           height: 0.2,
@@ -174,7 +174,32 @@ export class PianoRoll3D {
       const baseMeshMaterial = new BABYLON.StandardMaterial("baseMeshMaterial", this.scene);
       baseMeshMaterial.diffuseColor = new BABYLON.Color3(0.5, 0.2, 0.2);
       baseMesh.material = baseMeshMaterial;
+  
+      // === ADD BEAT & BAR DIVIDER LINES ===
+      for (let col = 0; col <= this.cols; col++) {
+          const isBar = col % (this.timeSignatureNumerator * this.timeSignatureDenominator) === 0;
+          const isBeat = col % this.timeSignatureDenominator === 0;
+  
+          if (isBar || isBeat) {
+              const line = BABYLON.MeshBuilder.CreateBox(`divider_${col}`, {
+                  width: 0.1,
+                  height: 0.2,
+                  depth:this.endZ-this.startZ+this.buttonWidth
+                }, this.scene);
+  
+              line.position.x = (col - (this.cols - 1) / 2) * (this.buttonWidth + this.buttonSpacing) - (this.buttonWidth + this.buttonSpacing)/2;
+              line.position.y = 0.2;
+              line.position.z = 0;
+  
+              const lineMaterial = new BABYLON.StandardMaterial(`lineMaterial_${col}`, this.scene);
+              lineMaterial.diffuseColor = isBar
+                  ? new BABYLON.Color3(0, 0, 1)   // Blue for bars
+                  : new BABYLON.Color3(1, 1, 1); // Black for beats
+              line.material = lineMaterial;
+          }
+      }
   }
+  
   
   addLabelToButton(buttonMesh, text) {
     const textPlane = BABYLON.MeshBuilder.CreatePlane(
