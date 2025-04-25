@@ -194,7 +194,7 @@ export class PianoRoll3D {
     highlightActiveButtons(currentCol) {
       for (let row = 0; row < this.rows; row++) {
           const button = this.getButton(row, currentCol);
-          if (button && button.isActive &&  !button.isPlaying) {
+          if (button && button.isActive) {
             button.isPlaying = true;
             // Flash green
             button.material.diffuseColor = new BABYLON.Color3(0, 1, 0);
