@@ -33,6 +33,20 @@ export class PianoRoll3D {
         this.initActions();
 
         this.pattern = { length: 96, notes: [] };
+        this.isAKeyPressed = false;
+        window.addEventListener("keydown", (e) => {
+          if (e.key.toLowerCase() === "a") {
+              this.isAKeyPressed = true;
+          }
+      });
+      
+      window.addEventListener("keyup", (e) => {
+          if (e.key.toLowerCase() === "a") {
+              this.isAKeyPressed = false;
+          }
+      });
+      
+
     }
     convertNoteToMidi(note) {
         const noteMap = {
@@ -122,7 +136,8 @@ export class PianoRoll3D {
                 button.position.x = (j - (this.cols - 1) / 2) * (this.buttonWidth + this.buttonSpacing);
                 button.position.z = (i - (this.rows - 1) / 2) * (this.buttonDepth + this.buttonSpacing);
                 button.position.y = this.buttonHeight / 2;
-        
+                button.mode = "normal"; // Default type
+
                 // Create separate material for each button
                 const material = new BABYLON.StandardMaterial(`buttonMaterial_${i}_${j}`, this.scene);
                 material.diffuseColor = new BABYLON.Color3(0.2, 0.6, 0.8);
@@ -195,22 +210,24 @@ export class PianoRoll3D {
       for (let row = 0; row < this.rows; row++) {
           const button = this.getButton(row, currentCol);
           if (button && button.isActive) {
-            button.isPlaying = true;
-            // Flash green
-            button.material.diffuseColor = new BABYLON.Color3(0, 1, 0);
-      
-            // Play note
-            // this.triggerNotePlayback(row, currentCol,button);
-      
-            setTimeout(() => {
-              if (button.isActive) {
-                button.material.diffuseColor = new BABYLON.Color3(1, 0, 0); // Red
-              }
-            }, this.cellDuration * 1000);
+              button.isPlaying = true;
+  
+              // Flash green
+              button.material.diffuseColor = new BABYLON.Color3(0, 1, 0);
+  
+              setTimeout(() => {
+                  if (button.isActive) {
+                      if (button.mode === "control") {
+                          button.material.diffuseColor = new BABYLON.Color3(0.6588, 0.2, 0.8); // Purple
+                      } else {
+                          button.material.diffuseColor = new BABYLON.Color3(1, 0, 0); // Red
+                      }
+                  }
+              }, this.cellDuration * 1000);
           }
-        }
-    }
-
+      }
+  }
+  
     start() {
         this.started = true;
         this.playhead.position.x = this.getStartX();
@@ -253,13 +270,20 @@ export class PianoRoll3D {
                 }
     
                 button.actionManager.registerAction(
-                    new BABYLON.ExecuteCodeAction(
-                        BABYLON.ActionManager.OnPickTrigger,
-                        () => {
-                            this.toggleNoteColor(row, col);
-                        }
-                    )
-                );
+                  new BABYLON.ExecuteCodeAction(
+                      BABYLON.ActionManager.OnPickTrigger,
+                      () => {
+                          if (this.isAKeyPressed) {
+                              this.toggleNoteColorwithControl(row, col);
+                          } else {
+                              this.toggleNoteColor(row, col);
+                          }
+                      }
+                  )
+              );
+              
+              
+
             }
         }
     }
@@ -268,9 +292,49 @@ export class PianoRoll3D {
         const button = this.getButton(row, col);
         if (!button) return;
         button.isActive = !button.isActive;
+        button.mode = button.isActive ? "normal" : "none";        
         button.material.diffuseColor = button.isActive
             ? new BABYLON.Color3(1, 0, 0)
             : new BABYLON.Color3(0.2, 0.6, 0.8);
         this.updatePattern(row, col, button.isActive);
     }
+ toggleNoteColorwithControl(row, col) {
+    const button = this.getButton(row, col);
+    if (!button) return;
+
+    // Find the last control-mode active button on the same row before current
+    let targetCol = -1;
+    for (let i = col - 1; i >= 0; i--) {
+        const prev = this.getButton(row, i);
+        if (prev?.isActive && prev.mode === "control") {
+            targetCol = i;
+            break;
+        }
     }
+
+    if (targetCol !== -1) {
+        // Extend duration of previous control note
+        const note = this.notes[row];
+        const midi = this.convertNoteToMidi(note);
+        const tick = targetCol * 6;
+        const noteObj = this.pattern.notes.find(n => n.number === midi && n.tick === tick);
+        if (noteObj) {
+            noteObj.duration = (col - targetCol + 1) * 6;
+        }
+    } else {
+        // Toggle current button with control mode
+        button.isActive = !button.isActive;
+        button.mode = button.isActive ? "control" : "normal";
+        button.material.diffuseColor = button.isActive
+            ? new BABYLON.Color3(0.6588, 0.2, 0.8)
+            : new BABYLON.Color3(0.2, 0.6, 0.8);
+        this.updatePattern(row, col, button.isActive);
+    }
+
+    this.sendPatternToPianoRoll();
+}
+
+  
+  
+    }
+    
