@@ -121,42 +121,99 @@ export class PianoRoll3D {
     }
 
     createGrid() {
-        this.buttonMaterial = new BABYLON.StandardMaterial("buttonMaterial", this.scene);
-        this.buttonMaterial.diffuseColor = new BABYLON.Color3(0.2, 0.6, 0.8);
-        this.buttons = Array.from({ length: this.rows }, () => []);
+      this.buttonMaterial = new BABYLON.StandardMaterial("buttonMaterial", this.scene);
+      this.buttonMaterial.diffuseColor = new BABYLON.Color3(0.2, 0.6, 0.8);
+      this.buttons = Array.from({ length: this.rows }, () => []);
+  
+      for (let i = 0; i < this.rows; i++) {
+          // Create label button (not interactive, only for display)
+          const labelButton = BABYLON.MeshBuilder.CreateBox(`label_button_${i}`, {
+              width: this.buttonWidth,
+              height: this.buttonHeight,
+              depth: this.buttonDepth
+          }, this.scene);
+  
+          labelButton.position.x = this.startX - (this.buttonWidth + this.buttonSpacing);
+          labelButton.position.z = (i - (this.rows - 1) / 2) * (this.buttonDepth + this.buttonSpacing);
+          labelButton.position.y = this.buttonHeight / 2;
+  
+          const labelMaterial = new BABYLON.StandardMaterial(`labelMaterial_${i}`, this.scene);
+          labelMaterial.diffuseColor = new BABYLON.Color3(0.1, 0.1, 0.1);
+          labelButton.material = labelMaterial;
+  
+          // Add label using your method
+          this.addLabelToButton(labelButton, this.notes[i]);
+  
+          for (let j = 0; j < this.cols; j++) {
+              const button = BABYLON.MeshBuilder.CreateBox(`button${i}_${j}`, {
+                  width: this.buttonWidth,
+                  height: this.buttonHeight,
+                  depth: this.buttonDepth
+              }, this.scene);
+  
+              button.position.x = (j - (this.cols - 1) / 2) * (this.buttonWidth + this.buttonSpacing);
+              button.position.z = labelButton.position.z;
+              button.position.y = this.buttonHeight / 2;
+              button.mode = "normal";
+  
+              const material = new BABYLON.StandardMaterial(`buttonMaterial_${i}_${j}`, this.scene);
+              material.diffuseColor = new BABYLON.Color3(0.2, 0.6, 0.8);
+              button.material = material;
+  
+              this.buttons[i].push(button);
+          }
+      }
+  
+      // Create base mesh
+      const baseMesh = BABYLON.MeshBuilder.CreateBox("baseMesh", {
+          width: this.endX - this.startX + this.buttonWidth * 2 + this.buttonSpacing,
+          height: 0.2,
+          depth: this.endZ - this.startZ + this.buttonWidth
+      }, this.scene);
+  
+      const baseMeshMaterial = new BABYLON.StandardMaterial("baseMeshMaterial", this.scene);
+      baseMeshMaterial.diffuseColor = new BABYLON.Color3(0.5, 0.2, 0.2);
+      baseMesh.material = baseMeshMaterial;
+  }
+  
+  addLabelToButton(buttonMesh, text) {
+    const textPlane = BABYLON.MeshBuilder.CreatePlane(
+        `${buttonMesh.name}_textPlane`,
+        { width: 2, height: 2 },
+        this.scene
+    );
 
-        for (let i = 0; i < this.rows; i++) {
-            for (let j = 0; j < this.cols; j++) {
-                const button = BABYLON.MeshBuilder.CreateBox(`button${i}_${j}`, {
-                    width: this.buttonWidth,
-                    height: this.buttonHeight,
-                    depth: this.buttonDepth
-                }, this.scene);
-        
-                button.position.x = (j - (this.cols - 1) / 2) * (this.buttonWidth + this.buttonSpacing);
-                button.position.z = (i - (this.rows - 1) / 2) * (this.buttonDepth + this.buttonSpacing);
-                button.position.y = this.buttonHeight / 2;
-                button.mode = "normal"; // Default type
+    textPlane.parent = buttonMesh;
+    textPlane.position.y = 0.11;
+    textPlane.rotation.x = Math.PI / 2;
+    textPlane.isPickable = false;
 
-                // Create separate material for each button
-                const material = new BABYLON.StandardMaterial(`buttonMaterial_${i}_${j}`, this.scene);
-                material.diffuseColor = new BABYLON.Color3(0.2, 0.6, 0.8);
-                button.material = material;
-        
-                this.buttons[i].push(button);
-            }
-        }
-                // Calculate playhead X movement range
+    const textMaterial = new BABYLON.StandardMaterial(`${buttonMesh.name}_textMaterial`, this.scene);
+    textMaterial.specularColor = new BABYLON.Color3(0, 0, 0);
+    textMaterial.emissiveColor = new BABYLON.Color3(1, 1, 1);
+    textPlane.material = textMaterial;
 
-        
+    const textTexture = new BABYLON.DynamicTexture(
+        `${buttonMesh.name}_texture`,
+        { width: 128, height: 128 },
+        this.scene,
+        true
+    );
+    textMaterial.diffuseTexture = textTexture;
+    textMaterial.useAlphaFromDiffuseTexture = true;
 
-        var baseMesh = BABYLON.MeshBuilder.CreateBox("baseMesh", { width:this.endX-this.startX+this.buttonWidth,height:0.2,depth:this.endZ-this.startZ+this.buttonWidth }, this.scene);
-        let baseMeshMaterial = new BABYLON.StandardMaterial("baseMeshMaterial", this.scene);
+    const ctx = textTexture.getContext();
+    ctx.clearRect(0, 0, 128, 128);
+    ctx.font = "bold 48px Arial";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = "white";
+    ctx.fillText(text, 64, 64);
+    textTexture.update();
 
-        baseMeshMaterial.diffuseColor = new BABYLON.Color3(0.5, 0.2, 0.2);
-        baseMesh.material = baseMeshMaterial;
-        
-    }
+    buttonMesh.labelPlane = textPlane;
+    buttonMesh.textTexture = textTexture;
+}
 
     createPlayhead() {
 
