@@ -391,26 +391,33 @@ export class PianoRoll3D {
             : new BABYLON.Color3(0.2, 0.6, 0.8);
         this.updatePattern(row, col, button.isActive);
     }
-    toggleNoteColorwithControl(row, col) {
-      const button = this.getButton(row, col);
-      if (!button) return;
-  
-      if (!this.isAKeyPressed) return;
-  
-      if (!this.currentControlSequence) {
-          // Start a new sequence
-          this.startNewControlSequence(row, col);
-      } else {
-          // Expand current sequence
-          const seq = this.currentControlSequence;
-          if (seq.row === row) {
-              this.expandControlSequence(row, seq.startCol, col);
-          } else {
-              // Different row => start new
-              this.startNewControlSequence(row, col);
-          }
-      }
-  }
+toggleNoteColorwithControl(row, col) {
+    const button = this.getButton(row, col);
+    if (!button) return;
+
+    if (!this.isAKeyPressed) return;
+
+    if (!this.currentControlSequence) {
+        // Start a new sequence
+        this.startNewControlSequence(row, col);
+    } else {
+        const seq = this.currentControlSequence;
+        
+        if (seq.row !== row) {
+            console.warn("⚠️ Cannot create sequence across multiple rows. Stay on the same row!");
+            return;
+        }
+
+        if (col < seq.startCol) {
+            console.warn("⚠️ Cannot create sequence backwards. You must move from left to right.");
+            return;
+        }
+
+        // Expand current sequence
+        this.expandControlSequence(row, seq.startCol, col);
+    }
+}
+
   startNewControlSequence(row, col) {
     const button = this.getButton(row, col);
     button.isActive = true;
@@ -510,20 +517,28 @@ deleteControlSequence(row, startCol) {
 
 
 expandControlSequence(row, startCol, currentCol) {
-  const button = this.getButton(row, currentCol);
-  button.isActive = true;
-  button.mode = "control";
-  button.material.diffuseColor = new BABYLON.Color3(0.6588, 0.2, 0.8); // purple
+  if (currentCol < startCol) {
+      console.warn("⚠️ Cannot create sequence backwards. You must move from left to right.");
+      return;
+  }
 
   const seq = this.currentControlSequence;
+
+  // Update all buttons between startCol and currentCol
+  for (let col = startCol; col <= currentCol; col++) {
+      const button = this.getButton(row, col);
+      if (button) {
+          button.isActive = true;
+          button.mode = "control";
+          button.material.diffuseColor = new BABYLON.Color3(0.6588, 0.2, 0.8); // purple
+      }
+  }
 
   // Update only the first note's duration
   const noteObj = this.pattern.notes.find(n => n.number === seq.midiNumber && n.tick === seq.startTick);
   if (noteObj) {
       noteObj.duration = (currentCol - startCol + 1) * this.ticksPerColumn;
-      
-      // Immediately send updated pattern to delegate
-      this.sendPatternToPianoRoll();
+      this.sendPatternToPianoRoll(); // Immediately update delegate
   }
 
   // Update the visual border
