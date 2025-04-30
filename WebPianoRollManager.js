@@ -1,4 +1,4 @@
-import { initExtensions } from './extensions.js';
+    import { initExtensions } from './extensions.js';
 
 export class WebPianoRollManager {
     constructor(audioContext) {

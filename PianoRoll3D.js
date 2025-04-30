@@ -25,7 +25,17 @@ export class PianoRoll3D {
 
         this.started = false;
         this.startTime = 0;
+        
+        this.rowControlBorders = {}; // { rowIndex: { mesh: borderMesh, startCol: number } }
+        this.currentControlSequence = null;
 
+        window.addEventListener("keyup", (e) => {
+            if (e.key.toLowerCase() === "a") {
+                this.isAKeyPressed = false;
+                this.currentControlSequence = null;  // <<<<<<<<<< RESET SEQUENCE on A release
+            }
+        });
+        
         this.notes = ["C3", "D3", "E3", "F3", "G3", "A3", "B3", "C4", "D4", "E4", "F4", "G4", "A4", "B4"];
 
         this.createGrid();
@@ -155,6 +165,7 @@ export class PianoRoll3D {
               button.position.z = labelButton.position.z;
               button.position.y = this.buttonHeight / 2;
               button.mode = "normal";
+              button.controlId = "";
   
               const material = new BABYLON.StandardMaterial(`buttonMaterial_${i}_${j}`, this.scene);
               material.diffuseColor = new BABYLON.Color3(0.2, 0.6, 0.8);
@@ -380,41 +391,151 @@ export class PianoRoll3D {
             : new BABYLON.Color3(0.2, 0.6, 0.8);
         this.updatePattern(row, col, button.isActive);
     }
- toggleNoteColorwithControl(row, col) {
+    toggleNoteColorwithControl(row, col) {
+      const button = this.getButton(row, col);
+      if (!button) return;
+  
+      if (!this.isAKeyPressed) return;
+  
+      if (!this.currentControlSequence) {
+          // Start a new sequence
+          this.startNewControlSequence(row, col);
+      } else {
+          // Expand current sequence
+          const seq = this.currentControlSequence;
+          if (seq.row === row) {
+              this.expandControlSequence(row, seq.startCol, col);
+          } else {
+              // Different row => start new
+              this.startNewControlSequence(row, col);
+          }
+      }
+  }
+  startNewControlSequence(row, col) {
     const button = this.getButton(row, col);
-    if (!button) return;
+    button.isActive = true;
+    button.mode = "control";
+    button.material.diffuseColor = new BABYLON.Color3(0.6588, 0.2, 0.8); // purple
 
-    // Find the last control-mode active button on the same row before current
-    let targetCol = -1;
-    for (let i = col - 1; i >= 0; i--) {
-        const prev = this.getButton(row, i);
-        if (prev?.isActive && prev.mode === "control") {
-            targetCol = i;
-            break;
-        }
-    }
+    // Create only one note for the starting button
+    const midiNumber = this.convertNoteToMidi(this.notes[row]);
+    const tick = col * this.ticksPerColumn;
 
-    if (targetCol !== -1) {
-        // Extend duration of previous control note
-        const note = this.notes[row];
-        const midi = this.convertNoteToMidi(note);
-        const tick = targetCol * 6;
-        const noteObj = this.pattern.notes.find(n => n.number === midi && n.tick === tick);
-        if (noteObj) {
-            noteObj.duration = (col - targetCol + 1) * 6;
-        }
-    } else {
-        // Toggle current button with control mode
-        button.isActive = !button.isActive;
-        button.mode = button.isActive ? "control" : "normal";
-        button.material.diffuseColor = button.isActive
-            ? new BABYLON.Color3(0.6588, 0.2, 0.8)
-            : new BABYLON.Color3(0.2, 0.6, 0.8);
-        this.updatePattern(row, col, button.isActive);
-    }
+    this.pattern.notes.push({
+        tick,
+        number: midiNumber,
+        duration: this.ticksPerColumn, // Start with 1 cell duration
+        velocity: 100,
+    });
 
+    // Immediately send update to delegate
     this.sendPatternToPianoRoll();
+
+    // Create visual border
+    const startX = (col - (this.cols - 1) / 2) * (this.buttonWidth + this.buttonSpacing);
+    const borderWidth = this.buttonWidth * 1.1;
+    const borderDepth = this.buttonDepth * 1.2;
+
+    const border = BABYLON.MeshBuilder.CreateBox(`groupBorder_${row}_${col}`, {
+        width: borderWidth,
+        height: 0.3,
+        depth: borderDepth,
+    }, this.scene);
+    border.isPickable = true; // Make the border clickable
+
+    const borderMaterial = new BABYLON.StandardMaterial(`groupBorderMat_${row}_${col}`, this.scene);
+    borderMaterial.diffuseColor = new BABYLON.Color3(1, 1, 0); // Yellow
+    borderMaterial.alpha = 0.4;
+    border.material = borderMaterial;
+
+    border.position.x = startX;
+    border.position.y = 0.25;
+    border.position.z = (row - (this.rows - 1) / 2) * (this.buttonDepth + this.buttonSpacing);
+
+    this.currentControlSequence = {
+        row,
+        startCol: col,
+        startTick: tick,
+        midiNumber,
+        borderMesh: border,
+    };
+
+    // Add action on clicking the border to delete the sequence
+    border.actionManager = new BABYLON.ActionManager(this.scene);
+    border.actionManager.registerAction(
+        new BABYLON.ExecuteCodeAction(
+            BABYLON.ActionManager.OnPickTrigger,
+            () => {
+                this.deleteControlSequence(row, col);
+            }
+        )
+    );
 }
+
+deleteControlSequence(row, startCol) {
+  if (!this.pattern || !this.pattern.notes) return;
+
+  // Find the note to delete
+  const midiNumber = this.convertNoteToMidi(this.notes[row]);
+  const tick = startCol * this.ticksPerColumn;
+  const noteIndex = this.pattern.notes.findIndex(n => n.number === midiNumber && n.tick === tick);
+
+  if (noteIndex !== -1) {
+      this.pattern.notes.splice(noteIndex, 1);
+  }
+
+  // Disable all buttons that were active in the sequence
+  const borderName = `groupBorder_${row}_${startCol}`;
+  const borderMesh = this.scene.getMeshByName(borderName);
+
+  if (borderMesh) {
+      // Calculate how many columns the border covers
+      const widthCols = Math.round(borderMesh.scaling.x);
+
+      for (let col = startCol; col < startCol + widthCols; col++) {
+          const button = this.getButton(row, col);
+          if (button) {
+              button.isActive = false;
+              button.mode = "none";
+              button.material.diffuseColor = new BABYLON.Color3(0.2, 0.6, 0.8); // back to blue
+          }
+      }
+
+      borderMesh.dispose();
+  }
+
+  // After deleting update the delegate
+  this.sendPatternToPianoRoll();
+}
+
+
+expandControlSequence(row, startCol, currentCol) {
+  const button = this.getButton(row, currentCol);
+  button.isActive = true;
+  button.mode = "control";
+  button.material.diffuseColor = new BABYLON.Color3(0.6588, 0.2, 0.8); // purple
+
+  const seq = this.currentControlSequence;
+
+  // Update only the first note's duration
+  const noteObj = this.pattern.notes.find(n => n.number === seq.midiNumber && n.tick === seq.startTick);
+  if (noteObj) {
+      noteObj.duration = (currentCol - startCol + 1) * this.ticksPerColumn;
+      
+      // Immediately send updated pattern to delegate
+      this.sendPatternToPianoRoll();
+  }
+
+  // Update the visual border
+  const centerCol = (startCol + currentCol) / 2;
+  const widthCols = (currentCol - startCol + 1);
+
+  seq.borderMesh.scaling.x = widthCols;
+  seq.borderMesh.position.x = (centerCol - (this.cols - 1) / 2) * (this.buttonWidth + this.buttonSpacing);
+}
+
+
+
 
   
   

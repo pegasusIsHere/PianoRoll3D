@@ -27,7 +27,7 @@ window.addEventListener('DOMContentLoaded', async () => {
 
     // set timeout to wait for the WAM to load
     await new Promise(resolve => setTimeout(resolve, 1000));
-    pianoRoll3D = new PianoRoll3D(scene, 12, 32, 60, audioContext,webPianoRoll );
+    pianoRoll3D = new PianoRoll3D(scene, 12, 16, 60, audioContext,webPianoRoll );
     const btnStart = document.querySelector("#btn-start");
 
     btnStart.onclick = () => {
