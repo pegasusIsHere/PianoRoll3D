@@ -36,8 +36,11 @@ export class PianoRoll3D {
             }
         });
         
-        this.notes = ["C3", "D3", "E3", "F3", "G3", "A3", "B3", "C4", "D4", "E4", "F4", "G4", "A4", "B4"];
-
+        this.notes = [
+            "C3", "C#3", "D3", "D#3", "E3", "F3", "F#3", "G3", "G#3", "A3", "A#3", "B3",
+            "C4", "C#4", "D4", "D#4", "E4", "F4", "F#4", "G4", "G#4", "A4", "A#4", "B4"
+        ];
+        
         this.createGrid();
         this.createPlayhead();
         this.initActions();
@@ -60,25 +63,35 @@ export class PianoRoll3D {
 
     }
     convertNoteToMidi(note) {
-        const noteMap = {
-          C3: 48,
-          D3: 50,
-          E3: 52,
-          F3: 53,
-          G3: 55,
-          A3: 57,
-          B3: 59,
-          C4: 60,
-          D4: 62,
-          E4: 64,
-          F4: 65,
-          G4: 67,
-          A4: 69,
-          B4: 71,
+        const noteRegex = /^([A-G])(#?)(\d)$/;
+        const semitoneOffsets = {
+            'C': 0,
+            'C#': 1,
+            'D': 2,
+            'D#': 3,
+            'E': 4,
+            'F': 5,
+            'F#': 6,
+            'G': 7,
+            'G#': 8,
+            'A': 9,
+            'A#': 10,
+            'B': 11,
         };
-        return noteMap[note];
+    
+        const match = note.match(noteRegex);
+        if (!match) return null;
+    
+        const base = match[1];
+        const sharp = match[2] === '#' ? '#' : '';
+        const octave = parseInt(match[3], 10);
+    
+        const key = base + sharp;
+        const midi = 12 * (octave + 1) + semitoneOffsets[key];
+    
+        return midi;
     }
-
+    
     // triggerNotePlayback(row, col,button) {
     //   console.log("triggerNotePlayback", row, col);
     //     const note = this.notes[row];
@@ -137,6 +150,26 @@ export class PianoRoll3D {
       this.buttons = Array.from({ length: this.rows }, () => []);
   
       for (let i = 0; i < this.rows; i++) {
+        // Add colored box to represent black/white key type
+const isBlack = this.isBlackKeyFromNoteName(this.notes[i]);
+
+const colorBox = BABYLON.MeshBuilder.CreateBox(`color_box_${i}`, {
+    width: this.buttonWidth,
+    height: this.buttonHeight,
+    depth: this.buttonDepth
+}, this.scene);
+
+colorBox.position.x = this.startX - 2 * (this.buttonWidth + this.buttonSpacing);
+colorBox.position.z = (i - (this.rows - 1) / 2) * (this.buttonDepth + this.buttonSpacing);
+colorBox.position.y = this.buttonHeight / 2;
+
+const colorMaterial = new BABYLON.StandardMaterial(`colorBoxMaterial_${i}`, this.scene);
+colorMaterial.diffuseColor = isBlack
+    ? new BABYLON.Color3(0.1, 0.1, 0.1)  // Black for black keys
+    : new BABYLON.Color3(1, 1, 1);       // White for white keys
+
+colorBox.material = colorMaterial;
+
           // Label button (non-interactive)
           const labelButton = BABYLON.MeshBuilder.CreateBox(`label_button_${i}`, {
               width: this.buttonWidth,
@@ -210,7 +243,12 @@ export class PianoRoll3D {
           }
       }
   }
-  
+  isBlackKeyFromNoteName(note) {
+    // Simplified check based on common black key notes
+    const blackKeys = ["C#3", "D#3", "F#3", "G#3", "A#3", "C#4", "D#4", "F#4", "G#4", "A#4"];
+    return blackKeys.includes(note);
+}
+
   
   addLabelToButton(buttonMesh, text) {
     const textPlane = BABYLON.MeshBuilder.CreatePlane(
